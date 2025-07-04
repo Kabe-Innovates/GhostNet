@@ -1,29 +1,43 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract HoneypotERC20 is ERC20, Ownable {
-    constructor(uint256 initialSupply) ERC20("HoneypotToken", "HPT") {
-        _mint(msg.sender, initialSupply);
+contract HoneypotERC20 is ERC20 {
+    event HoneypotTriggered(
+        address indexed attacker,
+        string action,
+        address indexed target,
+        uint256 amount,
+        uint256 timestamp
+    );
+
+    constructor() ERC20("GhostNet Honeypot Token", "GHP") {
+        // Mint a large supply to the deployer (honeypot bait)
+        _mint(msg.sender, 1_000_000 * 1e18);
     }
 
-    function transfer(address recipient, uint256 amount) public override returns (bool) {
-        require(balanceOf(msg.sender) >= amount, "Insufficient balance");
-        require(recipient != address(0), "Transfer to the zero address");
-
-        _transfer(msg.sender, recipient, amount);
-        return true;
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        emit HoneypotTriggered(msg.sender, "transfer", to, amount, block.timestamp);
+        return super.transfer(to, amount);
     }
 
-    function transferFrom(address sender, address recipient, uint256 amount) public override returns (bool) {
-        require(balanceOf(sender) >= amount, "Insufficient balance");
-        require(allowance(sender, msg.sender) >= amount, "Transfer amount exceeds allowance");
-        require(recipient != address(0), "Transfer to the zero address");
+    function approve(address spender, uint256 amount) public override returns (bool) {
+        emit HoneypotTriggered(msg.sender, "approve", spender, amount, block.timestamp);
+        return super.approve(spender, amount);
+    }
 
-        _transfer(sender, recipient, amount);
-        _approve(sender, msg.sender, allowance(sender, msg.sender) - amount);
-        return true;
+    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+        emit HoneypotTriggered(msg.sender, "transferFrom", to, amount, block.timestamp);
+        return super.transferFrom(from, to, amount);
+    }
+
+    // You can add more fake-vulnerable functions here to attract attackers
+    // For example, a function that looks like it allows anyone to withdraw tokens
+
+    function withdrawAll() external {
+        // Looks like a vulnerability, but doesn't actually transfer tokens
+        emit HoneypotTriggered(msg.sender, "withdrawAll_attempt", address(this), balanceOf(address(this)), block.timestamp);
+        // No actual withdrawal logic
     }
 }

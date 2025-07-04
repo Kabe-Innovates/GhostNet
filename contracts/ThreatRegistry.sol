@@ -1,29 +1,64 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+contract ThreatRegistry {
+    enum ThreatLevel { Safe, Suspicious, Malicious }
 
-contract HoneypotERC20 is ERC20, Ownable {
-    constructor(uint256 initialSupply) ERC20("HoneypotToken", "HPT") {
-        _mint(msg.sender, initialSupply);
+    struct ThreatInfo {
+        ThreatLevel level;
+        string explanation;
+        address reporter;
+        uint256 timestamp;
     }
 
-    function transfer(address recipient, uint256 amount) public override returns (bool) {
-        require(balanceOf(msg.sender) >= amount, "Insufficient balance");
-        require(recipient != address(0), "Transfer to the zero address");
+    mapping(address => ThreatInfo) public threats;
 
-        _transfer(msg.sender, recipient, amount);
-        return true;
+    address public owner;
+
+    event ThreatFlagged(
+        address indexed contractAddress,
+        ThreatLevel level,
+        string explanation,
+        address indexed reporter,
+        uint256 timestamp
+    );
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not authorized");
+        _;
     }
 
-    function transferFrom(address sender, address recipient, uint256 amount) public override returns (bool) {
-        require(balanceOf(sender) >= amount, "Insufficient balance");
-        require(allowance(sender, msg.sender) >= amount, "Transfer amount exceeds allowance");
-        require(recipient != address(0), "Transfer to the zero address");
+    constructor() {
+        owner = msg.sender;
+    }
 
-        _transfer(sender, recipient, amount);
-        _approve(sender, msg.sender, allowance(sender, msg.sender) - amount);
-        return true;
+    function flagThreat(
+        address contractAddress,
+        ThreatLevel level,
+        string calldata explanation
+    ) external onlyOwner {
+        threats[contractAddress] = ThreatInfo(
+            level,
+            explanation,
+            msg.sender,
+            block.timestamp
+        );
+        emit ThreatFlagged(
+            contractAddress,
+            level,
+            explanation,
+            msg.sender,
+            block.timestamp
+        );
+    }
+
+    function getThreat(address contractAddress) external view returns (
+        ThreatLevel level,
+        string memory explanation,
+        address reporter,
+        uint256 timestamp
+    ) {
+        ThreatInfo memory info = threats[contractAddress];
+        return (info.level, info.explanation, info.reporter, info.timestamp);
     }
 }
